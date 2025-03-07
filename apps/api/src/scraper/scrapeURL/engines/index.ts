@@ -11,6 +11,7 @@ import { scrapeURLWithScrapingBee } from "./scrapingbee";
 import { scrapeURLWithFetch } from "./fetch";
 import { scrapeURLWithPlaywright } from "./playwright";
 import { scrapeCache } from "./cache";
+import { scrapeURLWithScraperApi } from "./scraperapi";
 
 export type Engine =
   | "fire-engine;chrome-cdp"
@@ -19,6 +20,7 @@ export type Engine =
   | "scrapingbee"
   | "scrapingbeeLoad"
   | "playwright"
+  | "scraperapi"
   | "fetch"
   | "pdf"
   | "docx"
@@ -33,6 +35,9 @@ const useFireEngine =
 const usePlaywright =
   process.env.PLAYWRIGHT_MICROSERVICE_URL !== "" &&
   process.env.PLAYWRIGHT_MICROSERVICE_URL !== undefined;
+const useScraperApi =
+  process.env.SCRAPER_API_URL !== "" &&
+  process.env.SCRAPER_API_URL !== undefined;
 const useCache =
   process.env.CACHE_REDIS_URL !== "" &&
   process.env.CACHE_REDIS_URL !== undefined;
@@ -50,6 +55,7 @@ export const engines: Engine[] = [
     ? ["scrapingbee" as const, "scrapingbeeLoad" as const]
     : []),
   ...(usePlaywright ? ["playwright" as const] : []),
+  ...(useScraperApi ? ["scraperapi" as const] : []),
   "fetch",
   "pdf",
   "docx",
@@ -119,6 +125,7 @@ const engineHandlers: {
   scrapingbee: scrapeURLWithScrapingBee("domcontentloaded"),
   scrapingbeeLoad: scrapeURLWithScrapingBee("networkidle2"),
   playwright: scrapeURLWithPlaywright,
+  scraperapi: scrapeURLWithScraperApi,
   fetch: scrapeURLWithFetch,
   pdf: scrapePDF,
   docx: scrapeDOCX,
@@ -236,6 +243,23 @@ export const engineOptions: {
     },
     quality: 20,
   },
+  scraperapi: {
+    features: {
+      actions: false,
+      waitFor: true,
+      screenshot: true,
+      "screenshot@fullScreen": false,
+      pdf: false,
+      docx: false,
+      atsv: false,
+      location: false,
+      mobile: false,
+      skipTlsVerification: false,
+      useFastMode: false,
+      stealthProxy: false,
+    },
+    quality: 190,
+  },
   "fire-engine;tlsclient": {
     features: {
       actions: false,
@@ -312,9 +336,15 @@ export function buildFallbackList(meta: Meta): {
 }[] {
   const _engines: Engine[] = [
     ...engines,
-    
+
     // enable fire-engine in self-hosted testing environment when mocks are supplied
-    ...((!useFireEngine && meta.mock !== null) ? ["fire-engine;chrome-cdp", "fire-engine;playwright", "fire-engine;tlsclient"] as Engine[] : [])
+    ...(!useFireEngine && meta.mock !== null
+      ? ([
+          "fire-engine;chrome-cdp",
+          "fire-engine;playwright",
+          "fire-engine;tlsclient",
+        ] as Engine[])
+      : []),
   ];
 
   if (meta.internalOptions.useCache !== true) {
@@ -338,7 +368,9 @@ export function buildFallbackList(meta: Meta): {
 
   const currentEngines =
     meta.internalOptions.forceEngine !== undefined
-      ? (Array.isArray(meta.internalOptions.forceEngine) ? meta.internalOptions.forceEngine : [meta.internalOptions.forceEngine])
+      ? Array.isArray(meta.internalOptions.forceEngine)
+        ? meta.internalOptions.forceEngine
+        : [meta.internalOptions.forceEngine]
       : _engines;
 
   for (const engine of currentEngines) {
@@ -390,7 +422,8 @@ export function buildFallbackList(meta: Meta): {
     );
   }
 
-  if (meta.internalOptions.forceEngine === undefined) { // retain force engine order
+  if (meta.internalOptions.forceEngine === undefined) {
+    // retain force engine order
     selectedEngines.sort(
       (a, b) =>
         b.supportScore - a.supportScore ||
