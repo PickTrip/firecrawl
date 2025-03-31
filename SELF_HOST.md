@@ -106,6 +106,10 @@ BULL_AUTH_KEY=CHANGEME
 # Set if you'd like to send posthog events like job logs
 # POSTHOG_API_KEY=
 # POSTHOG_HOST=
+
+# You can add this to enable SCRAPER as a fallback scraping engine.
+#SCRAPER_API_URL=https://api.scraperapi.com
+#SCRAPER_API_KEY=
 ```
 
 3.  Build and run the Docker containers:
